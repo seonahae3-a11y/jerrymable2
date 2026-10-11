@@ -1,0 +1,367 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제리마블</title>
+<style>
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; width: 100%; min-height: 100%;
+  background: transparent; color: white;
+  font-family: Arial, "Malgun Gothic", sans-serif;
+}
+body { display: flex; justify-content: center; padding: 5px; }
+.wrapper { width: min(100%, 850px); text-align: center; }
+.info {
+  margin: 0 0 3px; font-size: clamp(18px, 3.5vw, 30px);
+  font-weight: 900; line-height: 1.35;
+  text-shadow: 2px 3px 5px #555; white-space: pre-line;
+}
+#message { margin: 0; color: #ffe66d; }
+.board {
+  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px; width: 100%;
+}
+.cell {
+  aspect-ratio: 1; min-width: 0; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+  align-items: center; padding: 2px;
+  border: 1.5px solid rgba(255,255,255,.85); border-radius: 6px;
+  background: transparent; color: white;
+  font-size: clamp(9px, 1.6vw, 15px); font-weight: 900;
+  line-height: 1.2; text-align: center; overflow-wrap: anywhere;
+  word-break: keep-all; text-shadow: 2px 2px 4px #555;
+}
+.cell.start { background: rgba(135,206,250,.5); border-color: #87cefa; }
+.cell.key { background: rgba(255,215,0,.5); border-color: #ffd700; }
+.number {
+  position: absolute; top: 3px; left: 4px;
+  font-size: clamp(10px, 1.5vw, 15px);
+}
+.emoji { font-size: clamp(20px, 3.2vw, 30px); }
+.name { max-width: 100%; white-space: pre-line; line-height: 1.25; }
+.cell.active {
+  outline: 3px solid #ffe66d; outline-offset: -3px;
+  box-shadow: 0 0 8px #ffe66d;
+}
+.player-mouse {
+  position: absolute; right: 2px; bottom: 2px; width: 36%;
+  max-width: 35px; height: auto; z-index: 5; pointer-events: none;
+  filter: drop-shadow(1px 1px 2px #555);
+}
+.controls {
+  display: flex; justify-content: center; align-items: center;
+  flex-wrap: wrap; gap: 10px; margin-top: 12px;
+}
+button {
+  border: 0; border-radius: 18px; padding: 13px 22px;
+  font-size: clamp(15px, 2.8vw, 23px); font-weight: 900;
+  cursor: pointer;
+}
+#rollButton { background: #19294f; color: white; border: 2px solid #8298df; }
+#resetButton { background: #87ceeb; color: #172b50; }
+#musicButton { background: #f4d6ff; color: #50245e; }
+.icon-button { min-width: 48px; min-height: 46px; padding: 8px 12px; font-size: 26px; line-height: 1; }
+button:disabled { opacity: .6; }
+#musicPanel {
+  display: none; margin-top: 12px; padding: 12px;
+  border: 1px solid #ddd; border-radius: 10px;
+  background: rgba(20,25,45,.96); text-align: left;
+}
+#musicPanel.open { display: block; }
+.music-help { font-size: 13px; line-height: 1.6; margin: 8px 0; }
+#musicFiles { width: 100%; padding: 10px; color: white; }
+#musicList {
+  margin-top: 10px; max-height: 180px; overflow-y: auto;
+  font-size: 13px; line-height: 1.7; overflow-wrap: anywhere;
+}
+.music-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.music-actions button { padding: 9px 13px; font-size: 13px; }
+#stopMusicButton { background: #ffc4c4; color: #692020; }
+#closeMusicButton { background: #ddd; color: #222; }
+#musicStatus { font-size: 13px; margin-top: 8px; color: #ffe66d; }
+@media(max-width:480px) {
+  .cell { border-width: 1px; border-radius: 5px; }
+  .controls { gap: 7px; margin-top: 10px; }
+  button { padding: 11px 14px; }
+  .icon-button { padding: 8px 10px; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="info"><div id="message">새로운 판이 준비됐어요!</div></div>
+  <div id="board" class="board"></div>
+  <div class="controls">
+    <button id="rollButton" class="icon-button" aria-label="주사위 굴리기" title="주사위 굴리기">🎲</button>
+    <button id="resetButton" class="icon-button" aria-label="판 다시 뽑기" title="판 다시 뽑기">🔁</button>
+    <button id="musicButton">🎵 노래 설정</button>
+  </div>
+  <div id="musicPanel">
+    <strong>🎵 이름별 자동 노래 연결</strong>
+    <div class="music-help">
+      노래 파일을 한 번에 여러 개 선택하세요.<br>
+      파일 이름과 보드 이름이 같으면 자동 연결됩니다.<br>
+      예: 나루토.mp3 → 나루토 / 족고아련.wav → 족고아련<br>
+      확장자를 제외한 파일 이름이 일치해야 하며, 해당 이름 칸에 도착하면 재생됩니다.
+    </div>
+    <input id="musicFiles" type="file" accept="audio/*,.mp3,.wav" multiple>
+    <div id="musicStatus">아직 노래 파일을 등록하지 않았어요.</div>
+    <div id="musicList"></div>
+    <div class="music-actions">
+      <button id="stopMusicButton">⏹ 노래 정지</button>
+      <button id="closeMusicButton">닫기</button>
+    </div>
+  </div>
+  <audio id="musicPlayer" preload="none"></audio>
+</div>
+<script>
+const names = [
+"하뿐슈","하뿐건","하뿐시","하뿐뮴","하뿐지","키세스","톰하디","족고아련","냥","죽순","역도",
+"비유어캣","티모송","러브밤","펑크유","GGEZ","피리춤","호영레이블","복고댄스","포켓몬","나루토","화이팅해야지",
+"피리춤","뿌애뿌애","킥드롭베이스","이머전시","우유","콩나물","오로나민씨","진압해","띵띵땅땅",
+"캐치캐치","나루토2","외모체크","모찌송","여우","야야야","두비두","이쿠욧","토탈얼라이브","파파라치",
+"드라군","달려라하니","뛰어","역도","쉐킷","사마귀","브르르","야옹음메","타모송","꼬마선장","웨이백홈",
+"냥이치니산","허리업","자기소개","바빠","오버드라이브","락댓바디","아원츄","라잌댓","베이프","랩비트",
+"찰칵","우치다","빵치즈빵","날라리","말해","브라질펑크","슈퍼그럼요","고라니","나랑사귈래","러브쉐이크",
+"핑크레이디","망치들라","미니언즈","카와이","우리집","라부부","슈퍼맨","스윔","얼씨구","시바레츠고",
+"스키","2배속스키","슥삭","체온","힙사돈","날라리","몸","방자고","원샷","누나가알려줄게","EDM",
+"오니쨩","LSD","WTF","모또모또","터미널","로드잭","첫만남","버터플라이","헤비머신건","아드레날린",
+"출항","카운팅스타","리빗업","마티니","살아있네","드리밍","배드","리멤버","룰러바이","아웅다웅",
+"캡쳐","바치바치","무브","UP","IAM","하트","페이트","에즈업","더티섹시","결국너야","루니솔라",
+"하뿐강","만개화","초월","큰손왔다","호텔파티","사랑한다고ㅅㅂㄹㅇ","크레이wl러브","로맨스","백갑숙","vip샴페인"
+];
+const rewards = ["드라슈죽","바비드야광","먹지마1스택","방종5분연장","방종10분연장","커피쿠폰","배민10000원"];
+const order = [1,2,3,4,5,6,7,8,16,15,14,13,12,11,10,9];
+const $ = id => document.getElementById(id);
+const boardElement = $("board");
+const message = $("message");
+const rollButton = $("rollButton");
+const musicPanel = $("musicPanel");
+const musicFilesInput = $("musicFiles");
+const musicStatus = $("musicStatus");
+const musicList = $("musicList");
+const musicPlayer = $("musicPlayer");
+
+let playerPosition = 1;
+let keyPositions = [];
+let boardNamesByPosition = {};
+let rolling = false;
+let currentObjectURL = null;
+const musicByName = new Map();
+
+function normalizeName(name) {
+  return name.normalize("NFC").trim().toLocaleLowerCase("ko-KR");
+}
+function shuffle(array) {
+  array = [...array];
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+function formatName(name) {
+  const chars = Array.from(name);
+  if (chars.length <= 4) return name;
+  const middle = Math.ceil(chars.length / 2);
+  return chars.slice(0, middle).join("") + "\n" + chars.slice(middle).join("");
+}
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+function createMouseImage() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "player-mouse");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("aria-label", "흰색 쥐 캐릭터");
+  svg.innerHTML = `
+    <ellipse cx="28" cy="25" rx="19" ry="21" fill="#fff" stroke="#bdbdbd" stroke-width="4"/>
+    <ellipse cx="72" cy="25" rx="19" ry="21" fill="#fff" stroke="#bdbdbd" stroke-width="4"/>
+    <ellipse cx="28" cy="27" rx="10" ry="12" fill="#eee"/>
+    <ellipse cx="72" cy="27" rx="10" ry="12" fill="#eee"/>
+    <ellipse cx="50" cy="59" rx="39" ry="34" fill="#fff" stroke="#bdbdbd" stroke-width="4"/>
+    <ellipse cx="36" cy="56" rx="4.5" ry="6" fill="#333"/>
+    <ellipse cx="64" cy="56" rx="4.5" ry="6" fill="#333"/>
+    <ellipse cx="25" cy="68" rx="8" ry="5" fill="#ffc0cb"/>
+    <ellipse cx="75" cy="68" rx="8" ry="5" fill="#ffc0cb"/>
+    <ellipse cx="50" cy="68" rx="5" ry="4" fill="#ffb6c1"/>
+    <path d="M50 72 Q44 79 39 74 M50 72 Q56 79 61 74" fill="none" stroke="#777" stroke-width="2.5" stroke-linecap="round"/>
+  `;
+  return svg;
+}
+function getSongName(filename) {
+  return filename.replace(/\.[^.]+$/, "").normalize("NFC").trim();
+}
+function stopMusic() {
+  musicPlayer.pause();
+  musicPlayer.removeAttribute("src");
+  musicPlayer.load();
+  currentObjectURL = null;
+}
+function registerMusicFiles(fileList) {
+  let added = 0, skipped = 0;
+  for (const file of Array.from(fileList || [])) {
+    if (!/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i.test(file.name)) {
+      skipped++; continue;
+    }
+    const name = getSongName(file.name);
+    if (!name) { skipped++; continue; }
+    const key = normalizeName(name);
+    const old = musicByName.get(key);
+    if (old && old.url) {
+      if (currentObjectURL === old.url) stopMusic();
+      URL.revokeObjectURL(old.url);
+    }
+    musicByName.set(key, { name, file, url: URL.createObjectURL(file) });
+    added++;
+  }
+  renderMusicList();
+  musicStatus.textContent = `${added}개 파일을 등록했어요.` +
+    (skipped ? ` 지원하지 않는 파일 ${skipped}개는 제외했어요.` : "");
+}
+function renderMusicList() {
+  const entries = [...musicByName.values()];
+  if (!entries.length) { musicList.textContent = "등록된 노래가 없어요."; return; }
+  const boardNames = new Set(Object.values(boardNamesByPosition).map(normalizeName));
+  musicList.innerHTML = entries.map(entry => {
+    const matched = boardNames.has(normalizeName(entry.name));
+    return `<div>${matched ? "✅" : "🎵"} ${escapeHTML(entry.name)} — ${matched ? "현재 보드에서 재생 가능" : "현재 보드에 없음"}</div>`;
+  }).join("");
+}
+async function playMusicForPosition(position) {
+  stopMusic();
+  if (position === 1) { musicStatus.textContent = "시작 칸에는 노래를 연결하지 않았어요."; return; }
+  if (keyPositions.includes(position)) { musicStatus.textContent = "황금열쇠 칸에는 노래를 재생하지 않아요."; return; }
+  const landedName = boardNamesByPosition[position];
+  if (!landedName) { musicStatus.textContent = "이 칸에 연결된 이름이 없어요."; return; }
+  const song = musicByName.get(normalizeName(landedName));
+  if (!song) { musicStatus.textContent = `"${landedName}"에 연결된 노래 파일이 없어요.`; return; }
+  currentObjectURL = song.url;
+  musicPlayer.src = song.url;
+  musicPlayer.load();
+  try {
+    await musicPlayer.play();
+    musicStatus.textContent = `🎵 재생 중: ${song.name}`;
+  } catch (error) {
+    musicStatus.textContent = `"${song.name}" 파일은 등록됐지만 재생할 수 없어요. 브라우저 또는 방송 오디오 설정을 확인해 주세요.`;
+  }
+}
+function createBoard() {
+  stopMusic();
+  playerPosition = 1;
+  keyPositions = shuffle(Array.from({length: 15}, (_, index) => index + 2)).slice(0, 3);
+  const selected = shuffle([...new Set(names)]).slice(0, 12);
+  boardNamesByPosition = {};
+  let index = 0;
+  for (let number = 2; number <= 16; number++) {
+    if (!keyPositions.includes(number)) boardNamesByPosition[number] = selected[index++] || "";
+  }
+  renderBoard();
+  message.textContent = "새로운 판이 준비됐어요!";
+  renderMusicList();
+}
+function renderBoard() {
+  boardElement.innerHTML = "";
+  order.forEach(number => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.dataset.number = number;
+    if (number === 1) {
+      cell.classList.add("start");
+      cell.innerHTML = '<span class="number">1</span><span class="emoji">🏁</span>';
+    } else if (keyPositions.includes(number)) {
+      cell.classList.add("key");
+      cell.innerHTML = `<span class="number">${number}</span><span class="emoji">🔑</span>`;
+    } else {
+      const name = boardNamesByPosition[number] || "";
+      cell.innerHTML = `<span class="number">${number}</span><span class="name">${escapeHTML(formatName(name))}</span>`;
+    }
+    if (number === playerPosition) {
+      cell.classList.add("active");
+      cell.appendChild(createMouseImage());
+    }
+    boardElement.appendChild(cell);
+  });
+}
+function handleLanding(position) {
+  if (position === 1) { message.textContent = "🏁 시작 칸에 도착했습니다!"; return; }
+  if (keyPositions.includes(position)) {
+    const reward = rewards[Math.floor(Math.random() * rewards.length)];
+    message.textContent = `🔑 황금열쇠에 도착했습니다!\n🎁 보상: ${reward}`;
+    return;
+  }
+  message.textContent = `✨ ${boardNamesByPosition[position]}에 도착했습니다!`;
+}
+
+// 한 칸 이동할 때마다 뿅 소리를 코드로 생성
+let stepAudioContext = null;
+function playStepSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!stepAudioContext) stepAudioContext = new AudioContextClass();
+    if (stepAudioContext.state === "suspended") stepAudioContext.resume();
+    const now = stepAudioContext.currentTime;
+    const oscillator = stepAudioContext.createOscillator();
+    const gain = stepAudioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(720, now);
+    oscillator.frequency.exponentialRampToValueAtTime(360, now + 0.11);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    oscillator.connect(gain);
+    gain.connect(stepAudioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.15);
+  } catch (error) {}
+}
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+async function rollDice() {
+  if (rolling) return;
+  rolling = true;
+  rollButton.disabled = true;
+  try {
+    const dice = Math.floor(Math.random() * 6) + 1;
+    let target = playerPosition;
+    for (let step = 0; step < dice; step++) {
+      if (playerPosition >= 16) {
+        createBoard();
+      } else {
+        playerPosition += 1;
+      }
+      target = playerPosition;
+      renderBoard();
+      playStepSound();
+      await wait(330);
+    }
+    handleLanding(target);
+    await playMusicForPosition(target);
+  } finally {
+    rolling = false;
+    rollButton.disabled = false;
+  }
+}
+rollButton.addEventListener("click", rollDice);
+$("resetButton").addEventListener("click", createBoard);
+$("musicButton").addEventListener("click", () => musicPanel.classList.toggle("open"));
+$("stopMusicButton").addEventListener("click", () => {
+  stopMusic();
+  musicStatus.textContent = "노래를 정지했어요.";
+});
+$("closeMusicButton").addEventListener("click", () => musicPanel.classList.remove("open"));
+musicFilesInput.addEventListener("change", () => {
+  registerMusicFiles(musicFilesInput.files);
+  musicFilesInput.value = "";
+});
+createBoard();
+</script>
+</body>
+</html>
